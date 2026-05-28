@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guardian Elite | SOS Command Center</title>
+
+    <style>
+        .pulse-marker-elite {
+            background: #ef4444 !important;
+            border-radius: 50% !important;
+            border: 2px solid white !important;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.8);
+            position: relative;
+            overflow: visible;
+        }
+
+        .pulse-marker-elite::after {
+            content: '';
+            position: absolute;
+            top: -10px;
+            left: -10px;
+            right: -10px;
+            bottom: -10px;
+            border: 2px solid #ef4444;
+            border-radius: 50%;
+            animation: ripple 1.5s infinite;
+            opacity: 0;
+        }
+
+        @keyframes ripple {
+            0% {
+                transform: scale(0.5);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(2.5);
+                opacity: 0;
+            }
+        }
+        .amenity-marker {
+            background: none !important;
+            border: none !important;
+            display: block !important;
+            z-index: 9999 !important;
+        }
+    </style>
+
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=JetBrains+Mono:wght@500&display=swap"
+        rel="stylesheet">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- Guardian Custom CSS -->
+    <link rel="stylesheet" href="/static/dashboard.css" />
+</head>
+
+<body>
+
+    <!-- Map Layer -->
+    <div id="map"></div>
+
+    <!-- UI Overlay -->
+    <div class="dashboard-overlay">
+
+        <!-- Header -->
+        <header class="header fade-in" style="animation-delay: 0.1s;">
+            <div class="logo-section">
+                <div style="font-size: 24px; font-weight: 800; letter-spacing: -1px;">GUARDIAN<span
+                        style="color: var(--accent-red)">ELITE</span></div>
+                <div id="categoryBadge"
+                    style="font-size: 12px; color: var(--text-secondary); font-weight: 700; text-transform: uppercase; letter-spacing: 2px;">
+                    GENERAL</div>
+            </div>
+
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button onclick="scanHelp()"
+                    style="background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: white; border-radius: 8px; padding: 6px 12px; font-size: 10px; cursor: pointer; font-weight: 700; backdrop-filter: blur(5px);">
+                    SCAN HELP
+                </button>
+                <button id="stealthBtn" onclick="toggleStealth()"
+                    style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 8px; padding: 6px 12px; font-size: 10px; cursor: pointer; font-weight: 700; backdrop-filter: blur(5px);">
+                    HIDE UI
+                </button>
+                <div class="sos-indicator">
+                    <span class="status-pulse"></span>
+                    ACTIVE SOS SIGNAL
+                </div>
+            </div>
+        </header>
+
+        <!-- Left Sidebar: Victim Profile -->
+        <aside class="sidebar-left">
+            <div class="glass-panel victim-card fade-in" style="animation-delay: 0.2s;">
+                <div class="avatar-large" id="avatar">?</div>
+                <div>
+                    <h2 id="userName" style="font-size: 24px; font-weight: 800;">Tracking...</h2>
+                    <p style="color: var(--text-secondary); font-size: 12px; margin-top: 4px;">ID: #SOS-{{ user_id }}
+                    </p>
+                </div>
+
+                <div style="width: 100%; height: 1px; background: var(--glass-border); margin: 8px 0;"></div>
+
+                <div class="location-info">
+                    <div class="info-label">Current Coordinates</div>
+                    <div class="info-value" id="coords">0.0000, 0.0000</div>
+                </div>
+
+                <div class="location-info" style="margin-top: 16px;">
+                    <div class="info-label">Signal Status</div>
+                    <div class="info-value" style="color: #4ade80;">ENCRYPTED • STRONG</div>
+                </div>
+
+                <div class="location-info" style="margin-top: 16px;">
+                    <div class="info-label">Device Battery</div>
+                    <div class="info-value" id="battery">--%</div>
+                </div>
+            </div>
+
+            <div class="glass-panel fade-in" style="animation-delay: 0.3s; padding: 20px; display: flex; flex-direction: column; gap: 10px;">
+                <button onclick="toggleAutoCenter()"
+                    style="width: 100%; background: #3b82f6; border: none; color: white; padding: 12px; border-radius: 12px; font-weight: 700; cursor: pointer; transition: transform 0.2s;">
+                    RE-CENTER ON VICTIM
+                </button>
+                <button onclick="window.location.reload()"
+                    style="width: 100%; background: var(--accent-red); border: none; color: white; padding: 12px; border-radius: 12px; font-weight: 700; cursor: pointer; transition: transform 0.2s;">
+                    REFRESH COMMAND LINK
+                </button>
+            </div>
+        </aside>
+
+        <!-- Center: Empty for map visibility -->
+        <main class="sidebar-center" style="pointer-events: none;"></main>
+
+        <!-- Right Sidebar: Evidence & Logs -->
+        <aside class="sidebar-right">
+            <!-- Visual Evidence Card -->
+            <div class="glass-panel fade-in" style="animation-delay: 0.35s; margin-bottom: 15px; text-align: center;">
+                <div class="info-label" style="margin-bottom: 8px; text-align: left;">Live Visual Evidence</div>
+                
+                <!-- Snapshot Thumbnail -->
+                <div id="snapshotContainer" style="display: none; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 10px;">
+                    <img id="snapshotImage" src="" alt="Emergency Snapshot" style="width: 100%; height: auto; display: block;" />
+                </div>
+                
+                <!-- Video Player -->
+                <div id="videoContainer" style="display: none; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);">
+                    <video id="videoPlayer" controls style="width: 100%; display: block;">
+                        <source id="videoSource" src="" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+                
+                <div id="visualPlaceholder" style="color: var(--text-secondary); font-size: 12px; padding: 20px 0;">
+                    Awaiting Visuals...
+                </div>
+            </div>
+
+            <!-- Audio Evidence Card -->
+            <div class="glass-panel audio-card fade-in" style="animation-delay: 0.4s;">
+                <div class="info-label">Audio Evidence (Latest)</div>
+                <div class="waveform-container" id="waveform">
+                    <!-- Bars generated via JS -->
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px;">
+                    <div style="font-size: 12px; color: var(--text-secondary);">15s Capture</div>
+                    <button id="playAudio"
+                        style="background: white; border: none; padding: 6px 16px; border-radius: 8px; font-weight: 700; font-size: 12px; cursor: pointer;">
+                        PLAY CLIP
+                    </button>
+                </div>
+            </div>
+
+            <!-- Activity Logs -->
+            <div class="glass-panel log-container fade-in" style="animation-delay: 0.5s;">
+                <div class="info-label" style="margin-bottom: 12px;">Operational Log</div>
+                <div id="logPanel">
+                    <div class="log-item"><span class="log-time">SYS</span> Command center initialized</div>
+                    <div class="log-item"><span class="log-time">GPS</span> Awaiting satellite lock...</div>
+                </div>
+            </div>
+        </aside>
+
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const userId = parseInt("{{ user_id }}") || 2;
+        let map;
+        let marker = null;
+        let latestAudioUrl = null;
+        let currentSnapshot = null;
+        let currentVideo = null;
+        const audioPlayer = new Audio();
+        try {
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([20, 0], 2);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 20 }).addTo(map);
+            console.log("🌍 MAP ENGINE: Online");
+        } catch (e) { console.error("Map failure:", e); }
+
+        let firstLock = true;
+        let autoCenter = true;
+        let amenityMarkers = (map) ? L.layerGroup().addTo(map) : null;
+
+        // Manual Override: Stop auto-centering if user moves the map
+        if (map) {
+            map.on('movestart', () => {
+                if (map._manualMove) autoCenter = false;
+            });
+            map.on('mousedown', () => map._manualMove = true);
+            map.on('mouseup', () => map._manualMove = false);
+        }
+
+        function toggleAutoCenter() {
+            autoCenter = true;
+            if (marker) map.setView(marker.getLatLng(), 17);
+            addLog("Auto-center re-engaged", "SYS");
+        }
+
+        // Generate Visual Waveform
+        function initWaveform() {
+            const waveform = document.getElementById('waveform');
+            if (waveform) {
+                waveform.innerHTML = '';
+                for (let i = 0; i < 40; i++) {
+                    const bar = document.createElement('div');
+                    bar.className = 'waveform-bar';
+                    const height = Math.floor(Math.random() * 30) + 5;
+                    bar.style.height = `${height}px`;
+                    waveform.appendChild(bar);
+                }
+            }
+        }
+        initWaveform();
+
+        function addLog(msg, type = "GPS") {
+            const container = document.getElementById('logPanel');
+            if (!container) return;
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const item = document.createElement('div');
+            item.className = 'log-item';
+            item.innerHTML = `<span class="log-time">${time}</span> <span style="color: ${type === 'SYS' ? '#3b82f6' : 'var(--accent-red)'}">${type}</span> ${msg}`;
+            container.prepend(item);
+        }
+
+        function scanHelp() {
+            if (marker) {
+                const pos = marker.getLatLng();
+                fetchNearbyServices(pos.lat, pos.lng);
+            } else { addLog("Awaiting signal lock...", "SYS"); }
+        }
+
+        function toggleStealth() {
+            const overlay = document.querySelector('.dashboard-overlay');
+            const btn = document.getElementById('stealthBtn');
+            if (overlay) {
+                overlay.classList.toggle('stealth-mode');
+                if (btn) {
+                    btn.innerText = overlay.classList.contains('stealth-mode') ? 'SHOW UI' : 'HIDE UI';
+                }
+            }
+        }
+
+        async function fetchNearbyServices(lat, lng) {
+            if (!lat || !lng) return;
+            addLog("Radar Ping: Scanning 5km radius...", "SYS");
+            // Restrict to only the most essential services: Hospital and Police
+            const query = `[out:json][timeout:25];(node["amenity"~"hospital|police"](around:5000, ${lat}, ${lng}););out center;`;
+            try {
+                const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
+                const data = await res.json();
+                if (amenityMarkers) amenityMarkers.clearLayers();
+                if (!data.elements || data.elements.length === 0) {
+                    addLog("Radar: No units in range.", "SYS");
+                    return;
+                }
+                data.elements.forEach(el => {
+                    const type = el.tags.amenity;
+                    let iconType = '🏥';
+                    if (type === 'police') iconType = '🚓';
+                    
+                    const icon = L.divIcon({
+                        className: 'amenity-marker',
+                        html: `<div style="background: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border: 3px solid #ef4444; font-size: 18px; box-shadow: 0 0 15px rgba(239, 68, 68, 0.8); font-weight: bold; position: relative; z-index: 9999;">${iconType}</div>`,
+                        iconSize: [30, 30],
+                        iconAnchor: [15, 15]
+                    });
+                    L.marker([el.lat, el.lon], { icon: icon, zIndexOffset: 1000 }).bindPopup(`<b style="color: black;">${el.tags.name || 'Emergency Unit'}</b>`).addTo(amenityMarkers);
+                });
+                addLog(`Radar: ${data.elements.length} primary units identified.`, "SYS");
+            } catch (e) { addLog("Radar mirror busy.", "SYS"); }
+        }
+
+        async function updateTracking() {
+            try {
+                const response = await fetch(`/get_location/${userId}`);
+                const data = await response.json();
+                
+                if (document.getElementById('userName')) document.getElementById('userName').innerText = data.full_name || "Vasanth Kumar";
+                if (document.getElementById('battery')) document.getElementById('battery').innerText = data.battery ? `${data.battery}%` : '--%';
+
+                // Update SOS Status Indicator
+                const sosIndicator = document.querySelector('.sos-indicator');
+                if (sosIndicator) {
+                    if (data.is_active === false) {
+                        sosIndicator.innerHTML = '<span class="status-pulse" style="background:#4ade80; animation:none;"></span>SOS RESOLVED';
+                        sosIndicator.style.color = '#4ade80';
+                        sosIndicator.style.borderColor = '#4ade80';
+                    } else {
+                        sosIndicator.innerHTML = '<span class="status-pulse"></span>ACTIVE SOS SIGNAL';
+                        sosIndicator.style.color = 'var(--accent-red)';
+                        sosIndicator.style.borderColor = 'var(--accent-red)';
+                    }
+                }
+
+                if (data.location) {
+                    const match = data.location.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+                    if (match) {
+                        const lat = parseFloat(match[1]);
+                        const lng = parseFloat(match[2]);
+                        const pos = [lat, lng];
+
+                        if (document.getElementById('coords')) document.getElementById('coords').innerText = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+                        if (!marker && map) {
+                            marker = L.marker(pos, { icon: L.divIcon({ className: 'pulse-marker-elite', iconSize: [24, 24] }) }).addTo(map);
+                            map.setView(pos, 17);
+                            addLog(`Signal Locked: ${lat.toFixed(4)}, ${lng.toFixed(4)}`, "SYS");
+                            fetchNearbyServices(lat, lng);
+                        } else if (marker) {
+                            const lastPos = marker.getLatLng();
+                            marker.setLatLng(pos);
+                            
+                            // Only snap map if Auto-Center is active
+                            if (autoCenter) {
+                                if (firstLock) { map.setView(pos, 17); firstLock = false; }
+                                else { map.panTo(pos); }
+                            }
+                            
+                            if (Math.abs(lastPos.lat - lat) > 0.005) {
+                                addLog("Movement detected. Updating radar...", "SYS");
+                                fetchNearbyServices(lat, lng);
+                            }
+                        }
+                    }
+                }
+                
+                latestAudioUrl = data.latest_audio;
+                const playBtn = document.getElementById('playAudio');
+                if (playBtn) playBtn.innerText = latestAudioUrl ? "PLAY CLIP" : "NO AUDIO";
+                
+                // Visual Evidence Update
+                if (data.snapshot_evidence && data.snapshot_evidence !== currentSnapshot) {
+                    currentSnapshot = data.snapshot_evidence;
+                    document.getElementById('snapshotImage').src = currentSnapshot;
+                    document.getElementById('snapshotContainer').style.display = 'block';
+                    document.getElementById('visualPlaceholder').style.display = 'none';
+                    addLog("Snapshot Received", "SYS");
+                }
+                
+                if (data.video_evidence && data.video_evidence !== currentVideo) {
+                    currentVideo = data.video_evidence;
+                    document.getElementById('videoSource').src = currentVideo;
+                    document.getElementById('videoPlayer').load();
+                    document.getElementById('videoContainer').style.display = 'block';
+                    document.getElementById('visualPlaceholder').style.display = 'none';
+                    addLog("Video Evidence Received", "SYS");
+                }
+
+            } catch (err) { console.error("Polling error:", err); }
+        }
+
+        document.getElementById('playAudio').addEventListener('click', function() {
+            if (latestAudioUrl) {
+                const btn = this;
+                btn.innerText = "⏳ LOADING...";
+                btn.disabled = true;
+                
+                audioPlayer.src = latestAudioUrl;
+                audioPlayer.load();
+                
+                audioPlayer.play().then(() => {
+                    btn.innerText = "🔊 PLAYING";
+                    document.getElementById('waveform').classList.add('playing');
+                    addLog("Playing live audio evidence...", "SYS");
+                }).catch(e => {
+                    console.error("Audio Playback Error:", e);
+                    btn.innerText = "❌ ERROR";
+                    addLog("Audio playback failed.", "SYS");
+                });
+
+                audioPlayer.onended = () => {
+                    btn.innerText = "PLAY CLIP";
+                    btn.disabled = false;
+                    document.getElementById('waveform').classList.remove('playing');
+                };
+            } else {
+                this.innerText = "🔇 NO AUDIO";
+                setTimeout(() => { this.innerText = "PLAY CLIP"; }, 2000);
+            }
+        });
+
+        setInterval(updateTracking, 3000);
+        updateTracking();
+        addLog("Tactical HUD Online", "SYS");
+    </script>
+</body>
+
+</html>
