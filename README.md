@@ -155,5 +155,5 @@ ngrok http 5000
 
 ---
 
-**Built with 🦾 for Kumar Vasanth by Antigravity.** 
+**Built with Anti-gravity by Krishna Chandra** 
 *Guardian Elite: Because every second counts.*
